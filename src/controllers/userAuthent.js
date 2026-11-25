@@ -1,3 +1,4 @@
+const redisClient = require("../config/redis");
 const User = require("../models/user")
 const validate = require('../utils/validator');
 const bcrypt = require("bcrypt");
@@ -10,10 +11,11 @@ const register =async (req,res)=>{
 
         // ye emailId already exist toh nahi karti mnere system main
         req.body.password = await bcrypt.hash(password, 10);
+        req.body.role = 'user';
 
          const user =   await User.create(req.body);
          //jwt
-        const key = jwt.sign({_id:user._id, emailId:emailId},process.env.JWT_KEY, {expireIn: 60*60});
+        const key = jwt.sign({_id:user._id, emailId:emailId, role:'user'},process.env.JWT_KEY, {expiresIn: 60*60});
         
         res.cookie('token',token, {maxAge: 60*60*1000});
         res.status(201).send("User Registered Successfully");
@@ -35,7 +37,7 @@ const login = async (req, res)=>{
         const match = bcrypt.compare(password, user.password);
         if(!match)
             throw new Error("Invalid Credentials");
-        const token = jwt.sign({_id:user._id, emailId:emailId},process.env.JWT_KEY, {expireIn: 60*60});
+        const token = jwt.sign({_id:user._id, emailId:emailId, role:user.role},process.env.JWT_KEY, {expiresIn: 60*60});
         
         res.cookie('token',token, {maxAge: 60*60*1000});
         res.status(200).send("Logged In Successfully");
@@ -48,9 +50,43 @@ const login = async (req, res)=>{
 //logout
 const logout = async(req, res)=>{
     try{
+        const {token} = req.cookies;
+        const payload = jwt.decode(token);
+
+        await redisClient.set(`token:${token}`, 'Bloacked');
+        await redisClient.expireAt(`token:${token}`,payload.exp);
+        //token add kar dunga redis ke blocklist
+        //cookies ko clear kr dena...
+
+        res.cookie("token", null, {expires: new Date(Date.now())});
+        res.send("Logged Out SuccesFully");
 
     }
     catch(err){
-
+        res.send(503).send("Error: "+err);
     }
 }
+const adminRegister = async(req, res)=>{
+    try{
+        //validate the data
+        // if(req.result.role!='admin')
+        //     throw new Error("Invalid Credentials");
+        validate(req.body);
+        const {firstName, emailId, password}= req.body;
+
+        // ye emailId already exist toh nahi karti mnere system main
+        req.body.password = await bcrypt.hash(password, 10);
+        req.body.role = 'admin';
+
+         const user =   await User.create(req.body);
+         //jwt
+        const key = jwt.sign({_id:user._id, emailId:emailId, role:'user'},process.env.JWT_KEY, {expiresIn: 60*60});
+        
+        res.cookie('token',token, {maxAge: 60*60*1000});
+        res.status(201).send("User Registered Successfully");
+    }
+    catch(err){
+        res.status(400).send("Error:"+err); 
+    }
+}
+module.exports= {register, login, logout, adminRegister};

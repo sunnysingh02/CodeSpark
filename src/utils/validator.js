@@ -7,9 +7,9 @@ const validate = (data)=>{
 
     if(!IsAllowed)
         throw new Error("Some Field Missing");
-    if(validator.isEmail(data.emailId))
+    if(!validator.isEmail(data.emailId))
         throw new Error("Invalid Email");
-    if(!validator.isStrongPassword(data.pasword))
+    if(!validator.isStrongPassword(data.password))
         throw new Error("Week Password");
 }
 
